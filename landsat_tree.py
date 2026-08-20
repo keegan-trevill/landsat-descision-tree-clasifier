@@ -1,6 +1,10 @@
 # %%
 import numpy as np
 import pandas as pd
+import rasterio
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import confusion_matrix, classification_report
 
 # %%
 col_names = ["class","Band_1","Band_2","Band_3","Band_4","Band_5","Band_6","Band_7"]
@@ -153,6 +157,7 @@ feature_columns = [
 X = data[feature_columns].to_numpy()
 Y = data["class"].to_numpy().reshape(-1, 1)
 
+import rasterio
 from sklearn.model_selection import train_test_split
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42, stratify=Y)
 # %%
@@ -193,3 +198,248 @@ print()
 
 print("Testing classes:")
 print(pd.Series(Y_test.ravel()).value_counts())
+
+# Column 0 = class
+# Columns 1-7 = Landsat B1-B7
+X = data.iloc[:, 1:8].to_numpy()
+y = data.iloc[:, 0].to_numpy()
+
+print(X)
+print(y)
+
+print("\nClass counts:")
+print(data.iloc[:, 0].value_counts())
+
+
+# --------------------------------------------------
+# TRAIN / TEST SPLIT
+# --------------------------------------------------
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X,
+    y,
+    stratify=y,
+    test_size=0.2,
+    random_state=17
+)
+
+
+# --------------------------------------------------
+# RANDOM FOREST
+# --------------------------------------------------
+
+rf = RandomForestClassifier(
+    random_state=17,
+    n_jobs=-1
+)
+
+rf.fit(X_train, y_train)
+
+y_pred = rf.predict(X_test)
+
+print(
+    rf.score(X_test, y_test),
+    "is the accuracy of the model"
+)
+
+print("\nConfusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred))
+
+
+# --------------------------------------------------
+# FIND MISCLASSIFIED TEST PIXELS
+# --------------------------------------------------
+
+wrong_mask = y_pred != y_test
+
+print("\nMisclassified feature rows:")
+print(X_test[wrong_mask])
+
+print("\nActual labels:")
+print(y_test[wrong_mask])
+
+print("\nPredicted labels:")
+print(y_pred[wrong_mask])
+
+
+# --------------------------------------------------
+# FEATURE IMPORTANCE
+# --------------------------------------------------
+
+feature_names = [
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "B5",
+    "B6",
+    "B7"
+]
+
+print("\nFeature Importances:")
+
+for feature, importance in zip(
+    feature_names,
+    rf.feature_importances_
+):
+    print(feature, round(importance, 3))
+
+
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B1.TIF"
+) as src:
+    band1 = src.read(1)
+    profile = src.profile
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B2.TIF"
+) as src:
+    band2 = src.read(1)
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B3.TIF"
+) as src:
+    band3 = src.read(1)
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B4.TIF"
+) as src:
+    band4 = src.read(1)
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B5.TIF"
+) as src:
+    band5 = src.read(1)
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B6.TIF"
+) as src:
+    band6 = src.read(1)
+
+with rasterio.open(
+    r"C:\Users\keega\Downloads\Landsat\LC09_L2SP_024030_20260603_20260605_02_T1_SR_B7.TIF"
+) as src:
+    band7 = src.read(1)
+
+
+print("\nBand shape:")
+print(band1.shape)
+
+
+# --------------------------------------------------
+# STACK ALL SEVEN BANDS
+# --------------------------------------------------
+
+stack = np.stack(
+    (
+        band1,
+        band2,
+        band3,
+        band4,
+        band5,
+        band6,
+        band7
+    ),
+    axis=-1
+)
+
+print("\nStack shape:")
+print(stack.shape)
+
+
+# --------------------------------------------------
+# TURN IMAGE INTO PIXEL FEATURE ROWS
+# --------------------------------------------------
+
+rows, cols = band1.shape
+
+pixels = stack.reshape(-1, 7)
+
+print("\nPixel matrix shape:")
+print(pixels.shape)
+
+print("\nFirst five pixels:")
+print(pixels[:5])
+
+
+# --------------------------------------------------
+# CLASSIFY FULL IMAGE IN CHUNKS
+# --------------------------------------------------
+
+chunk_size = 500_000
+
+prediction_chunks = []
+
+for start in range(0, len(pixels), chunk_size):
+
+    end = start + chunk_size
+
+    chunk = pixels[start:end]
+
+    chunk_pred = rf.predict(chunk)
+
+    prediction_chunks.append(chunk_pred)
+
+
+predictions = np.concatenate(
+    prediction_chunks
+)
+
+
+# --------------------------------------------------
+# TURN PREDICTIONS BACK INTO A RASTER
+# --------------------------------------------------
+
+classified = predictions.reshape(
+    rows,
+    cols
+)
+
+print("\nClassified raster shape:")
+print(classified.shape)
+
+print("\nFirst 5 x 5 classified pixels:")
+print(classified[:5, :5])
+
+print("\nClass distribution:")
+print(
+    np.unique(
+        classified,
+        return_counts=True
+    )
+)
+
+
+# --------------------------------------------------
+# WRITE CLASSIFICATION TO GEOTIFF
+# --------------------------------------------------
+
+profile.update(
+    dtype=rasterio.uint8,
+    count=1
+)
+
+output_path = (
+    r"C:\Users\keega\Downloads\Landsat"
+    r"\vegetation_classification.tif"
+)
+
+with rasterio.open(
+    output_path,
+    "w",
+    **profile
+) as dst:
+
+    dst.write(
+        classified.astype(
+            rasterio.uint8
+        ),
+        1
+    )
+
+print("\nSaved:")
+print(output_path)
