@@ -8,7 +8,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 
 # %%
 col_names = ["class","Band_1","Band_2","Band_3","Band_4","Band_5","Band_6","Band_7"]
-data = pd.read_csv("C:\\Users\\keega\\LandsatTraining\\Training_CSV.csv", skiprows=1, header = None, names = col_names)
+data = pd.read_csv("Training_CSV.csv", skiprows=1, header = None, names = col_names)
 #data['class'] = data['class'].map({'NonVeg': 0, 'Veg': 1})
 print(data.head(10))
 print("Hello")
@@ -165,7 +165,6 @@ classifier = DecisionTreeClassifier(min_samples_split=3, max_depth=3)
 classifier.fit(X_train, Y_train) 
 classifier.print_tree()
 
-# %%
 #shows accuracy of the model
 Y_pred = classifier.predict(X_test)
 from sklearn.metrics import accuracy_score
@@ -211,9 +210,7 @@ print("\nClass counts:")
 print(data.iloc[:, 0].value_counts())
 
 
-# --------------------------------------------------
-# TRAIN / TEST SPLIT
-# --------------------------------------------------
+#Train-test split with stratification to ensure that the class distribution is preserved in both the training and testing sets. The test size is set to 20% of the data, and a random state is provided for reproducibility.
 
 X_train, X_test, y_train, y_test = train_test_split(
     X,
@@ -224,10 +221,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 
-# --------------------------------------------------
-# RANDOM FOREST
-# --------------------------------------------------
-
+#Set up the Random Forest Classifier with a random state for reproducibility and n_jobs=-1 to use all available CPU cores for parallel processing.
 rf = RandomForestClassifier(
     random_state=17,
     n_jobs=-1
@@ -249,9 +243,7 @@ print("\nClassification Report:")
 print(classification_report(y_test, y_pred))
 
 
-# --------------------------------------------------
-# FIND MISCLASSIFIED TEST PIXELS
-# --------------------------------------------------
+#Find the misclassified feature rows, actual labels, and predicted labels. This is done to identify which samples were incorrectly classified by the model.
 
 wrong_mask = y_pred != y_test
 
@@ -265,9 +257,7 @@ print("\nPredicted labels:")
 print(y_pred[wrong_mask])
 
 
-# --------------------------------------------------
-# FEATURE IMPORTANCE
-# --------------------------------------------------
+#Feature importances are calculated by the Random Forest model to determine which bands are most important for making predictions. The importance of each feature is a measure of how much that feature contributes to the model's decision-making process.
 
 feature_names = [
     "B1",
@@ -330,9 +320,7 @@ print("\nBand shape:")
 print(band1.shape)
 
 
-# --------------------------------------------------
-# STACK ALL SEVEN BANDS
-# --------------------------------------------------
+#Stack the bands into a single 3D array where the last dimension represents the bands. This is done to prepare the data for classification.
 
 stack = np.stack(
     (
@@ -351,10 +339,7 @@ print("\nStack shape:")
 print(stack.shape)
 
 
-# --------------------------------------------------
-# TURN IMAGE INTO PIXEL FEATURE ROWS
-# --------------------------------------------------
-
+#The image is reshaped into a 2D array where each row is a pixel and each column is a band. This is done to prepare the data for classification.
 rows, cols = band1.shape
 
 pixels = stack.reshape(-1, 7)
@@ -366,9 +351,7 @@ print("\nFirst five pixels:")
 print(pixels[:5])
 
 
-# --------------------------------------------------
-# CLASSIFY FULL IMAGE IN CHUNKS
-# --------------------------------------------------
+#Classify in chunks as it is a large image and may not fit in memory all at once. 
 
 chunk_size = 500_000
 
@@ -390,9 +373,6 @@ predictions = np.concatenate(
 )
 
 
-# --------------------------------------------------
-# TURN PREDICTIONS BACK INTO A RASTER
-# --------------------------------------------------
 
 classified = predictions.reshape(
     rows,
@@ -414,9 +394,7 @@ print(
 )
 
 
-# --------------------------------------------------
-# WRITE CLASSIFICATION TO GEOTIFF
-# --------------------------------------------------
+#Write the classified raster to a new GeoTIFF file
 
 profile.update(
     dtype=rasterio.uint8,
@@ -443,3 +421,4 @@ with rasterio.open(
 
 print("\nSaved:")
 print(output_path)
+print("\nDone!")
