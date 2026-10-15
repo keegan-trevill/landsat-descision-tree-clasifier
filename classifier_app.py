@@ -1,4 +1,4 @@
-# %%
+
 import numpy as np
 import pandas as pd
 import rasterio
@@ -35,11 +35,6 @@ uploaded_files = st.file_uploader(
 )
 for uploaded_file in uploaded_files:
     print(uploaded_file.name)
-# %%
-
-
-#prompt user for the Landsat bands 1-7 as GeoTIFF files. The user can upload multiple files at once, and the accepted file types are .tif and .tiff. The uploaded files are stored in a list for further processing.
-
 
 
 #find the file paths of the Landsat bands in the directory. The bands are identified by their file names, which contain the band number (1-7) in the format "_SR_B[band_number].TIF". The file paths are stored in a list, and a dictionary is created to map each band number to its corresponding file path.
